@@ -60,6 +60,7 @@ export const PropertiesView: React.FC<PropertiesViewProps> = ({
       address: newAddress,
       city: newCity,
       postalCode: newPostalCode,
+      country: 'BJ',
       type: 'Appartement',
       surface: Number(newSurface),
       rooms: Number(newRooms),

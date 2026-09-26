@@ -5,7 +5,10 @@ import {
   TechnicalTicket,
   RentReceipt,
   PaymentTransaction,
+  CountryCode,
 } from '../types';
+import { COUNTRIES, formatCurrency } from '../data/countries';
+import { RentComparisonModule } from './RentComparisonModule';
 import {
   TrendingUp,
   AlertTriangle,
@@ -21,6 +24,9 @@ import {
   Sparkles,
   ChevronRight,
   ShieldCheck,
+  Scale,
+  Database,
+  QrCode,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -29,10 +35,15 @@ interface DashboardViewProps {
   tickets: TechnicalTicket[];
   receipts: RentReceipt[];
   payments: PaymentTransaction[];
+  country: CountryCode;
   onOpenNewTicket: () => void;
   onOpenRelance: (tenant: Tenant) => void;
   onOpenQuittance: (receipt: RentReceipt) => void;
+  onOpenNormalizedInvoice: (receipt: RentReceipt) => void;
   onOpenPayment: () => void;
+  onOpenTenantDatabase: () => void;
+  onOpenRecourse: () => void;
+  onApplyRentAdjustment?: (propertyId: string, newRent: number) => void;
   onNavigateTab: (tab: 'properties' | 'interventions' | 'finances' | 'documents' | 'messages') => void;
 }
 
@@ -42,14 +53,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   tickets,
   receipts,
   payments,
+  country,
   onOpenNewTicket,
   onOpenRelance,
   onOpenQuittance,
+  onOpenNormalizedInvoice,
   onOpenPayment,
+  onOpenTenantDatabase,
+  onOpenRecourse,
+  onApplyRentAdjustment,
   onNavigateTab,
 }) => {
+  const countryConfig = COUNTRIES[country] || COUNTRIES.BJ;
+  const isBenin = country === 'BJ';
+
+  // Filter properties by country if needed or show all with prominent active country
+  const relevantProperties = properties;
+  const relevantTenants = tenants;
+
   // Financial calculations
-  const totalRents = properties.reduce(
+  const totalRents = relevantProperties.reduce(
     (acc, p) => (p.status === 'Loué' ? acc + p.rentExclCharges + p.charges : acc),
     0
   );
@@ -57,25 +80,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .filter((p) => p.status === 'Validé' && p.type === 'Loyer mensuel')
     .reduce((acc, p) => acc + p.amount, 0);
 
-  const lateTenants = tenants.filter((t) => t.paymentStatus === 'RETARD');
+  const lateTenants = relevantTenants.filter((t) => t.paymentStatus === 'RETARD');
   const lateAmount = lateTenants.reduce((acc, t) => acc + t.balanceDue, 0);
 
   const activeTickets = tickets.filter(
     (t) => t.status !== 'TERMINÉ' && t.status !== 'VALIDÉ'
   );
 
-  const occupiedCount = properties.filter((p) => p.status === 'Loué').length;
-  const occupancyRate = Math.round((occupiedCount / properties.length) * 100);
+  const occupiedCount = relevantProperties.filter((p) => p.status === 'Loué').length;
+  const occupancyRate = relevantProperties.length > 0 ? Math.round((occupiedCount / relevantProperties.length) * 100) : 100;
+
+  const latestReceipt = receipts[0];
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-8">
       {/* Top Welcome Card */}
       <div className="bg-slate-900 text-white rounded-2xl p-5 shadow-sm relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Système de gestion locative actif
+              Système de gestion locative actif · {countryConfig.flag} {countryConfig.name}
             </span>
             <span className="font-mono">Septembre 2026</span>
           </div>
@@ -83,7 +108,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             Tableau de Bord Immobilier
           </h2>
           <p className="text-xs text-slate-300 mt-1">
-            4 biens gérés · {occupiedCount} loués · 1 alerte impayé · {activeTickets.length} interventions
+            {relevantProperties.length} biens gérés · {occupiedCount} loués · {lateTenants.length} alerte impayé · {activeTickets.length} interventions
           </p>
 
           {/* Quick action buttons row */}
@@ -93,21 +118,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors"
             >
               <Wrench className="w-3.5 h-3.5" />
-              Signaler un incident
+              Signaler panne
             </button>
+            <button
+              onClick={onOpenTenantDatabase}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors border border-slate-700"
+            >
+              <Database className="w-3.5 h-3.5 text-indigo-400" />
+              Base Locataires
+            </button>
+            <button
+              onClick={onOpenRecourse}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors border border-slate-700"
+            >
+              <Scale className="w-3.5 h-3.5 text-amber-400" />
+              Recours en ligne
+            </button>
+            {isBenin && latestReceipt && (
+              <button
+                onClick={() => onOpenNormalizedInvoice(latestReceipt)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+                Facture e-MECeF IFU
+              </button>
+            )}
             <button
               onClick={() => onNavigateTab('finances')}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors border border-slate-700"
             >
               <FileText className="w-3.5 h-3.5" />
-              Générer quittance
-            </button>
-            <button
-              onClick={onOpenPayment}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg transition-colors border border-slate-700"
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              Payer en ligne
+              Quittances
             </button>
           </div>
         </div>
@@ -121,13 +162,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>Loyers perçus</span>
             <TrendingUp className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-xl font-bold font-mono tabular-nums text-slate-900">
-            {collectedPayments.toLocaleString('fr-FR')} €
+          <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-slate-900">
+            {formatCurrency(collectedPayments, countryConfig)}
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
-            <span>Objectif : {totalRents.toLocaleString('fr-FR')} €</span>
+            <span>Objectif : {formatCurrency(totalRents, countryConfig)}</span>
             <span className="font-semibold text-emerald-700">
-              {Math.round((collectedPayments / totalRents) * 100)}%
+              {totalRents > 0 ? Math.round((collectedPayments / totalRents) * 100) : 100}%
             </span>
           </div>
         </div>
@@ -138,11 +179,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span>Taux d'occupation</span>
             <Building className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-xl font-bold font-mono tabular-nums text-slate-900">
+          <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-slate-900">
             {occupancyRate}%
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            <span>{occupiedCount} logements loués sur 4</span>
+            <span>{occupiedCount} logements loués sur {relevantProperties.length}</span>
           </div>
         </div>
 
@@ -152,25 +193,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <span className="font-medium">Impayés & Retards</span>
             <AlertTriangle className="w-4 h-4 text-amber-600" />
           </div>
-          <div className="text-xl font-bold font-mono tabular-nums text-rose-700">
-            {lateAmount.toLocaleString('fr-FR')} €
+          <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-rose-700">
+            {formatCurrency(lateAmount, countryConfig)}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            <span>1 locataire en retard</span>
+            <span>{lateTenants.length} locataire(s) en retard</span>
           </div>
         </div>
 
-        {/* Metric 4: Active Technical Tickets */}
+        {/* Metric 4: Active Technical Repairs */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
           <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-            <span>Interventions actives</span>
+            <span>Interventions en cours</span>
             <Wrench className="w-4 h-4 text-blue-600" />
           </div>
-          <div className="text-xl font-bold font-mono tabular-nums text-slate-900">
+          <div className="text-lg sm:text-xl font-bold font-mono tabular-nums text-slate-900">
             {activeTickets.length}
           </div>
           <div className="text-[11px] text-slate-500 mt-1">
-            <span>1 en cours · 1 planifiée</span>
+            <span>Réparations & artisans notifiés</span>
           </div>
         </div>
       </div>
@@ -185,10 +226,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
               <div>
                 <h3 className="font-semibold text-xs text-slate-900">
-                  Alerte Impayé : Thomas Durand ({lateTenants[0].balanceDue.toLocaleString('fr-FR')} €)
+                  Alerte Impayé : {lateTenants[0].firstName} {lateTenants[0].lastName} ({formatCurrency(lateTenants[0].balanceDue, countryConfig)})
                 </h3>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Loyer de Septembre échu depuis {lateTenants[0].daysLate} jours pour le Loft Roosevelt (Lyon 6e).
+                  Loyer de Septembre échu depuis {lateTenants[0].daysLate || 11} jours. Procédure légale de relance ({countryConfig.leaseLawName}).
                 </p>
               </div>
             </div>
@@ -211,6 +252,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* RENT COMPARISON & LOCAL MARKET TRENDS MODULE */}
+      <RentComparisonModule
+        properties={properties}
+        country={country}
+        onApplyAdjustment={(propId, newRent) => {
+          if (onApplyRentAdjustment) {
+            onApplyRentAdjustment(propId, newRent);
+          }
+        }}
+      />
 
       {/* REAL-TIME TECHNICAL INTERVENTIONS TRACKER PREVIEW */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">

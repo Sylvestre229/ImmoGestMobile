@@ -5,7 +5,9 @@ import {
   TechnicalTicket,
   RentReceipt,
   PropertyDocument,
+  CountryCode,
 } from '../types';
+import { COUNTRIES, formatCurrency } from '../data/countries';
 import {
   Home,
   CreditCard,
@@ -20,6 +22,9 @@ import {
   ChevronRight,
   Sparkles,
   Phone,
+  Scale,
+  QrCode,
+  FileCheck,
 } from 'lucide-react';
 
 interface TenantPortalViewProps {
@@ -28,8 +33,11 @@ interface TenantPortalViewProps {
   tickets: TechnicalTicket[];
   receipts: RentReceipt[];
   documents: PropertyDocument[];
+  country: CountryCode;
   onOpenPayment: () => void;
   onOpenQuittance: (rcp: RentReceipt) => void;
+  onOpenNormalizedInvoice: (rcp: RentReceipt) => void;
+  onOpenRecourse: () => void;
   onOpenNewTicket: () => void;
   onNavigateTab: (tab: 'interventions' | 'messages' | 'documents') => void;
 }
@@ -40,16 +48,24 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({
   tickets,
   receipts,
   documents,
+  country,
   onOpenPayment,
   onOpenQuittance,
+  onOpenNormalizedInvoice,
+  onOpenRecourse,
   onOpenNewTicket,
   onNavigateTab,
 }) => {
+  const countryConfig = COUNTRIES[country] || COUNTRIES.BJ;
+  const isBenin = country === 'BJ';
+
   const myTickets = tickets.filter((t) => t.tenantId === tenant.id || t.propertyId === property.id);
   const myReceipts = receipts.filter((r) => r.tenantId === tenant.id || r.propertyId === property.id);
   const myDocs = documents.filter((d) => d.propertyId === property.id);
   const latestReceipt = myReceipts[0];
   const activeTicket = myTickets.find((t) => t.status !== 'TERMINÉ' && t.status !== 'VALIDÉ');
+
+  const totalRent = property.rentExclCharges + property.charges;
 
   return (
     <div className="space-y-4 pb-12 text-xs max-w-xl mx-auto">
@@ -58,26 +74,31 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({
         <div className="flex items-center justify-between text-xs text-blue-200">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            Espace Résident Sécurisé
+            Espace Résident Sécurisé · {countryConfig.flag} {countryConfig.name}
           </span>
-          <span className="text-[11px] font-mono">Bail n° 2024-03-DSS</span>
+          <span className="text-[11px] font-mono">Bail n° {property.id}-{tenant.id.slice(-4)}</span>
         </div>
 
         <div>
           <h2 className="text-xl font-bold tracking-tight">
-            Bonjour, {tenant.firstName}
+            Bonjour, {tenant.firstName} {tenant.lastName}
           </h2>
           <p className="text-xs text-slate-300 mt-0.5">
             {property.address}, {property.postalCode} {property.city}
           </p>
+          {tenant.ifuNumber && (
+            <p className="text-[11px] text-blue-300 font-mono mt-0.5">
+              Code IFU Fiscal : <span className="font-bold">{tenant.ifuNumber}</span>
+            </p>
+          )}
         </div>
 
         {/* Status of rent */}
         <div className="p-3.5 bg-white/10 backdrop-blur-sm rounded-2xl flex items-center justify-between border border-white/10">
           <div>
-            <span className="text-[10px] text-slate-300 block">Loyer Septembre 2026</span>
+            <span className="text-[10px] text-slate-300 block">Loyer Mensuel Dû (Septembre 2026)</span>
             <span className="text-lg font-bold font-mono tabular-nums text-white">
-              {(property.rentExclCharges + property.charges).toLocaleString('fr-FR')} €
+              {formatCurrency(totalRent, countryConfig)}
             </span>
           </div>
 
@@ -94,24 +115,59 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({
             className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-colors shadow-xs"
           >
             <CreditCard className="w-4 h-4" />
-            <span>Payer des charges</span>
+            <span>Payer en ligne</span>
           </button>
           {latestReceipt && (
             <button
-              onClick={() => onOpenQuittance(latestReceipt)}
+              onClick={() => {
+                if (isBenin || latestReceipt.country === 'BJ') {
+                  onOpenNormalizedInvoice(latestReceipt);
+                } else {
+                  onOpenQuittance(latestReceipt);
+                }
+              }}
               className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-white/15 hover:bg-white/20 text-white font-medium rounded-xl transition-colors border border-white/20"
             >
-              <Download className="w-4 h-4" />
-              <span>Quittance Septembre</span>
+              {isBenin ? <QrCode className="w-4 h-4 text-emerald-300" /> : <Download className="w-4 h-4" />}
+              <span>{isBenin ? 'Facture e-MECeF IFU' : 'Quittance Septembre'}</span>
             </button>
           )}
         </div>
       </div>
 
+      {/* JURISDICTION & ONLINE RECOURSE BANNER (Bail à usage domestique) */}
+      <div className="p-4 bg-gradient-to-r from-amber-500/10 via-amber-50/50 to-orange-50 border border-amber-200 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-amber-100 text-amber-800 rounded-xl border border-amber-300 shrink-0">
+            <Scale className="w-5 h-5 text-amber-700" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-slate-900 text-xs">
+                Recours en ligne du contrat de bail
+              </h3>
+              <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded font-mono">
+                {countryConfig.name}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-2">
+              {countryConfig.leaseLawName}. Déposez une saisine en cas de litige, non-délivrance de facture normalisée ou dépassement de caution (max {countryConfig.depositLimitMonths} mois).
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onOpenRecourse}
+          className="px-3 py-2 bg-amber-700 hover:bg-amber-800 text-white font-semibold rounded-xl text-xs whitespace-nowrap transition-colors shadow-xs"
+        >
+          Saisir un recours
+        </button>
+      </div>
+
       {/* QUICK REPORT A REPAIR ISSUE (Big touch target for non-tech users) */}
       <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl border border-blue-200">
             <Wrench className="w-6 h-6" />
           </div>
           <div>
@@ -119,7 +175,7 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({
               Un problème ou une panne ?
             </h3>
             <p className="text-xs text-slate-500">
-              Signalez une fuite, un problème d'électricité ou de chauffage en 1 minute.
+              Signalez une panne ou fuite avec photos. Suivi en direct garanti.
             </p>
           </div>
         </div>
@@ -250,8 +306,8 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({
               />
             </div>
             <div>
-              <h4 className="font-bold text-slate-900">Sophie Vernier</h4>
-              <p className="text-[11px] text-slate-500">Votre gestionnaire ImmoGest dédiée</p>
+              <h4 className="font-bold text-slate-900">Sylvestre Bocco & Sophie Vernier</h4>
+              <p className="text-[11px] text-slate-500">Gestionnaires de votre résidence</p>
             </div>
           </div>
           <button
@@ -266,3 +322,4 @@ export const TenantPortalView: React.FC<TenantPortalViewProps> = ({
     </div>
   );
 };
+
