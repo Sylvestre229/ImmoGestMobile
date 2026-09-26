@@ -1,0 +1,6 @@
+{
+  "name": "ImmoGest Mobile",
+  "description": "Application mobile de gestion locative et copropriété : tableau de bord, portail locataire, quittances automatiques, suivi des interventions en temps réel et relance des impayés.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
